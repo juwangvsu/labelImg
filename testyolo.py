@@ -5,6 +5,7 @@ import os.path
 import re
 import sys
 import subprocess
+from subprocess import Popen
 
 from functools import partial
 from collections import defaultdict
@@ -154,6 +155,8 @@ class MainWindow(QMainWindow, WindowMixin):
 
         opendir = action('&Open Dir', self.openDir,
                 'Ctrl+u', 'open', u'Open Dir')
+        testyolo = action('&Test Yolo', self.testYolo,
+                'Ctrl+u', 'open', u'Open Dir')
 
         changeSavedir = action('&Change save dir', self.changeSavedir,
                 'Ctrl+r', 'open', u'Change default saved Annotation dir')
@@ -267,7 +270,7 @@ class MainWindow(QMainWindow, WindowMixin):
                 zoom=zoom, zoomIn=zoomIn, zoomOut=zoomOut, zoomOrg=zoomOrg,
                 fitWindow=fitWindow, fitWidth=fitWidth,
                 zoomActions=zoomActions,
-                fileMenuActions=(open,opendir,save,saveAs,close,quit),
+                fileMenuActions=(open,opendir,testyolo,save,saveAs,close,quit),
                 beginner=(), advanced=(),
                 editMenu=(edit, copy, delete, None, color1, color2),
                 beginnerContext=(create, edit, copy, delete),
@@ -285,7 +288,7 @@ class MainWindow(QMainWindow, WindowMixin):
                 labelList=labelMenu)
 
         addActions(self.menus.file,
-                (open, opendir,changeSavedir, openAnnotation, self.menus.recentFiles, save, saveAs, close, None, quit))
+                (open, opendir,testyolo,changeSavedir, openAnnotation, self.menus.recentFiles, save, saveAs, close, None, quit))
         addActions(self.menus.help, (help,))
         
         self.singleClassMode = QAction("Single Class Mode", self)
@@ -309,11 +312,11 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.tools = self.toolbar('Tools')
         self.actions.beginner = (
-            changeSavedir, opendir, openNextImg, openPrevImg, save, None, create, copy, delete, None,
+            changeSavedir, opendir, testyolo, openNextImg, openPrevImg, save, None, create, copy, delete, None,
             zoomIn, zoom, zoomOut, fitWindow, fitWidth)
 
         self.actions.advanced = (
-            changeSavedir, opendir, openNextImg, openPrevImg, save, None,
+            changeSavedir, opendir, testyolo, openNextImg, openPrevImg, save, None,
             createMode, editMode, None,
             hideAll, showAll)
 
@@ -527,11 +530,16 @@ class MainWindow(QMainWindow, WindowMixin):
 
     # Tzutalin 20160906 : Add file list and dock to move faster
     def fileitemDoubleClicked(self, item=None):
+	print('file item double clicked')
         currIndex = self.mImgList.index(str(item.text()))
         if currIndex  < len(self.mImgList):
             filename = self.mImgList[currIndex]
             if filename:
+		print(filename)
                 self.loadFile(filename)
+	#nohup, the output from the cmd run via Popen is appended to the file nohup
+		Popen(['nohup', '/home/student/labelImg/darknet.sh', 'detector test /media/student/code1/darknet/tagreal/darknet_tagreal.data /media/student/code1/darknet/tagreal/darknet-yolov3.cfg /media/student/code1/darknet/backup-tagreal/darknet-yolov3.backup '+filename])
+                self.showimg('/home/student/labelImg/predictions.jpg')
 
     # React to canvas signals.
     def shapeSelectionChanged(self, selected=False):
@@ -614,6 +622,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.shapeSelectionChanged(True)
 
     def labelSelectionChanged(self):
+	print('file selected')
         item = self.currentItem()
         if item and self.canvas.editing():
             self._noSelectionSlot = True
@@ -691,6 +700,23 @@ class MainWindow(QMainWindow, WindowMixin):
     def togglePolygons(self, value):
         for item, shape in self.itemsToShapes.iteritems():
             item.setCheckState(Qt.Checked if value else Qt.Unchecked)
+
+    def showimg(self, filename=None):
+        self.imageData = read(filename, None)
+        image = QImage.fromData(self.imageData)
+        if image.isNull():
+            self.errorMessage(u'Error opening file',
+                    u"<p>Make sure <i>%s</i> is a valid image file." % filename)
+            self.status("Error reading %s" % filename)
+            return False
+        self.status("Loaded %s" % os.path.basename(unicode(filename)))
+        self.image = image
+        self.filename = filename
+        self.canvas.loadPixmap(QPixmap.fromImage(image))
+        self.setClean()
+        self.canvas.setEnabled(True)
+        self.adjustScale(initial=True)
+        self.paintCanvas()
 
     def loadFile(self, filename=None):
         """Load the specified file, or the last opened file if None."""
@@ -867,6 +893,31 @@ class MainWindow(QMainWindow, WindowMixin):
                 '%s - Choose a xml file' % __appname__, path, filters))
             self.loadPascalXMLByFilename(filename)
 
+    def testYolo(self, _value=False):
+        if not self.mayContinue():
+            return
+	print("testyolo")
+        path = os.path.dirname(unicode(self.filename))\
+                if self.filename else '.'
+
+        if self.lastOpenDir is not None and len(self.lastOpenDir) > 1:
+            path = self.lastOpenDir
+
+        dirpath = unicode(QFileDialog.getExistingDirectory(self,
+            '%s - Open Directory' % __appname__, path,  QFileDialog.ShowDirsOnly
+                                                | QFileDialog.DontResolveSymlinks))
+
+        self.dirname = dirpath
+        self.mImgList = self.scanAllImages(dirpath)
+	print('imglist', self.mImgList)
+        self.openNextImg()
+        for imgPath in self.mImgList:
+            item = QListWidgetItem(imgPath)
+            self.fileListWidget.addItem(item)
+
+	#nohup, the output from the cmd run via Popen is appended to the file nohup
+	#Popen(['nohup', '/home/student/labelImg/darknet.sh', 'detector test /media/student/code1/darknet/tagreal/darknet_tagreal.data /media/student/code1/darknet/tagreal/darknet-yolov3.cfg /media/student/code1/darknet/backup-tagreal/darknet-yolov3.backup /media/student/code1/darknet/data/frame0000.jpg'])
+	#this not work, darknet must be run from darknet folder. Popen(['nohup', '/media/student/code1/darknet/darknet', 'detector test /media/student/code1/darknet/tagreal/darknet_tagreal.data /media/student/code1/darknet/tagreal/darknet-yolov3.cfg /media/student/code1/darknet/backup-tagreal/darknet-yolov3.backup /media/student/code1/darknet/data/frame0000.jpg'])
     def openDir(self, _value=False):
         if not self.mayContinue():
             return

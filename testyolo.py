@@ -157,7 +157,7 @@ class MainWindow(QMainWindow, WindowMixin):
                 'Ctrl+u', 'open', u'Open Dir')
         testyolo = action('&Test Yolo', self.testYolo,
                 'Ctrl+u', 'open', u'Open Dir')
-
+	self.darknetproc=None
         changeSavedir = action('&Change save dir', self.changeSavedir,
                 'Ctrl+r', 'open', u'Change default saved Annotation dir')
 
@@ -538,7 +538,15 @@ class MainWindow(QMainWindow, WindowMixin):
 		print(filename)
                 self.loadFile(filename)
 	#nohup, the output from the cmd run via Popen is appended to the file nohup
-		Popen(['nohup', '/home/student/labelImg/darknet.sh', 'detector test /media/student/code1/darknet/tagreal/darknet_tagreal.data /media/student/code1/darknet/tagreal/darknet-yolov3.cfg /media/student/code1/darknet/backup-tagreal/darknet-yolov3.backup '+filename])
+	#	run darknet in testudp mode, only start once
+		if self.darknetproc==None:
+			print('calling darknet.sh...')
+			self.darknetproc=Popen(['nohup', '/home/student/labelImg/darknet.sh', 'detector testudp /media/student/code1/darknet/tagreal/darknet_tagreal.data /media/student/code1/darknet/tagreal/darknet-yolov3.cfg /media/student/code1/darknet/backup-tagreal/darknet-yolov3.backup '])
+		Popen(['nohup', '/home/student/labelImg/udpsnd.sh', filename])
+
+# run darknet in test mode, pass filename in the script
+
+#		Popen(['nohup', '/home/student/labelImg/darknet.sh', 'detector test /media/student/code1/darknet/tagreal/darknet_tagreal.data /media/student/code1/darknet/tagreal/darknet-yolov3.cfg /media/student/code1/darknet/backup-tagreal/darknet-yolov3.backup '+filename])
                 self.showimg('/home/student/labelImg/predictions.jpg')
 
     # React to canvas signals.
@@ -894,6 +902,7 @@ class MainWindow(QMainWindow, WindowMixin):
             self.loadPascalXMLByFilename(filename)
 
     def testYolo(self, _value=False):
+
         if not self.mayContinue():
             return
 	print("testyolo")
@@ -915,6 +924,7 @@ class MainWindow(QMainWindow, WindowMixin):
             item = QListWidgetItem(imgPath)
             self.fileListWidget.addItem(item)
 
+	self.darknetproc=Popen(['nohup', '/home/student/labelImg/darknet.sh', 'detector testudp /media/student/code1/darknet/tagreal/darknet_tagreal.data /media/student/code1/darknet/tagreal/darknet-yolov3.cfg /media/student/code1/darknet/backup-tagreal/darknet-yolov3.backup '])
 	#nohup, the output from the cmd run via Popen is appended to the file nohup
 	#Popen(['nohup', '/home/student/labelImg/darknet.sh', 'detector test /media/student/code1/darknet/tagreal/darknet_tagreal.data /media/student/code1/darknet/tagreal/darknet-yolov3.cfg /media/student/code1/darknet/backup-tagreal/darknet-yolov3.backup /media/student/code1/darknet/data/frame0000.jpg'])
 	#this not work, darknet must be run from darknet folder. Popen(['nohup', '/media/student/code1/darknet/darknet', 'detector test /media/student/code1/darknet/tagreal/darknet_tagreal.data /media/student/code1/darknet/tagreal/darknet-yolov3.cfg /media/student/code1/darknet/backup-tagreal/darknet-yolov3.backup /media/student/code1/darknet/data/frame0000.jpg'])
